@@ -1,75 +1,33 @@
-pipeline{
+node {
+   
+    stage("Git Clone") {
+        git url: 'https://github.com/DevOpsProjs/mywebapp.git', branch: 'master'
+    }
+    
+    stage ("Maven Package") {
+        def mavenHome= tool  name: "Maven-3.8.5", type: "maven"  
+        sh "${mavenHome}/bin/mvn clean package"
+    }
+    
+    stage("Build Docker Image") {
+        sh "docker build -t sreeni78/mywebapp:${BUILD_NUMBER} ."
+    }
+    
+    stage("Docker Login and Push") {
+        withCredentials([usernamePassword(credentialsId: 'Docker_Hub_Creds', passwordVariable: 'Docker_Pass', usernameVariable: 'Docker_User')]) {     
+             sh "docker login -u ${Docker_User} -p ${Docker_Pass}"
+        }
+       
+        sh "docker push sreeni78/mywebapp:${BUILD_NUMBER}"
+    }
+    
 
-agent any
-
-tools{
-maven 'maven3.8.2'
-
+    stage("Deploy Container on Docker Server") {
+        sshagent(['Docker_Container']) {
+            sh 'ssh -o StrictHostKeyChecking=no root@192.168.9.42 docker stop mymwa'
+            sh 'ssh -o StrictHostKeyChecking=no root@192.168.9.42 docker rm -f mymwa || true'
+            sh 'ssh -o StrictHostKeyChecking=no root@192.168.9.42 docker run -d -p 9090:8080 --name mymwa sreeni78/mywebapp:${BUILD_NUMBER}'
+        }
+    }
+    
 }
-
-triggers{
-pollSCM('* * * * *')
-}
-
-options{
-timestamps()
-buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '5', daysToKeepStr: '', numToKeepStr: '5'))
-}
-
-stages{
-
-  stage('CheckOutCode'){
-    steps{
-    git branch: 'development', credentialsId: '957b543e-6f77-4cef-9aec-82e9b0230975', url: 'https://github.com/devopstrainingblr/maven-web-application-1.git'
-	
-	}
-  }
-  
-  stage('Build'){
-  steps{
-  sh  "mvn clean package"
-  }
-  }
-/*
- stage('ExecuteSonarQubeReport'){
-  steps{
-  sh  "mvn clean sonar:sonar"
-  }
-  }
-  
-  stage('UploadArtifactsIntoNexus'){
-  steps{
-  sh  "mvn clean deploy"
-  }
-  }
-  
-  stage('DeployAppIntoTomcat'){
-  steps{
-  sshagent(['bfe1b3c1-c29b-4a4d-b97a-c068b7748cd0']) {
-   sh "scp -o StrictHostKeyChecking=no target/maven-web-application.war ec2-user@35.154.190.162:/opt/apache-tomcat-9.0.50/webapps/"    
-  }
-  }
-  }
-  */
-}//Stages Closing
-
-post{
-
- success{
- emailext to: 'srinivas.sdg@gmail.com',
-          subject: "Pipeline Build is over .. Build # is ..${env.BUILD_NUMBER} and Build status is.. ${currentBuild.result}.",
-          body: "Pipeline Build is over .. Build # is ..${env.BUILD_NUMBER} and Build status is.. ${currentBuild.result}.",
-          replyTo: 'srinivas.sdg@gmail.com'
- }
- 
- failure{
- emailext to: 'srinivas.sdg@gmail.com',
-          subject: "Pipeline Build is over .. Build # is ..${env.BUILD_NUMBER} and Build status is.. ${currentBuild.result}.",
-          body: "Pipeline Build is over .. Build # is ..${env.BUILD_NUMBER} and Build status is.. ${currentBuild.result}.",
-          replyTo: 'srinivas.sdg@gmail.com'
- }
- 
-}
-
-
-}//Pipeline closing
