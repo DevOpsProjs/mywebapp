@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: mwadep
+ namespace: testns
+spec:
+ replicas: 2
+ selector:
+  matchLabels:
+   app: mwapodlbl
+ template:
+  metadata:
+   name: mwapod
+   labels:
+    app: mwapodlbl
+  spec:
+   containers:
+   - image: sreeni78/mywebapp:1
+     name: mwacon
+     ports:
+      - containerPort: 8080
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+ name: mwasvc
+ namespace: testns
+spec:
+ type: NodePort
+ selector:
+  app: mwapodlbl
+ ports:
+ - nodePort: 32222
+   port: 8080
+   targetPort: 8080
+   name: tomcat
